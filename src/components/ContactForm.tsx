@@ -1,15 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-// import emailjs from "emailjs-com";
-import { getData } from "country-list";
-// import countryData from "country-telephone-data";
-
-// interface Country {
-//   name: string;
-//   iso2: string;
-//   dialCode: string;
-// }
+import { getCountries, getCountryCallingCode, isSupportedCountry } from "libphonenumber-js";
 
 export default function ContactForm() {
   const [firstName, setFirstName] = useState("");
@@ -19,6 +11,8 @@ export default function ContactForm() {
   const [businessStatus, setBusinessStatus] = useState("");
   const [country, setCountry] = useState("");
   const [phone, setPhone] = useState<string | undefined>();
+  // phoneCountry mirrors the select-driven country for PhoneInput (lowercase or undefined)
+  const [phoneCountry, setPhoneCountry] = useState<string | undefined>();
   const [message, setMessage] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreeMarketing, setAgreeMarketing] = useState(false);
@@ -35,14 +29,62 @@ export default function ContactForm() {
   const [otp, setOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // NEW: loading states for API actions
+  const [otpTimer, setOtpTimer] = useState(0);
+
+  // Get page URL and title
+  const [pageUrl, setPageUrl] = useState("");
+  const [pageTitle, setPageTitle] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPageUrl(window.location.href);
+      setPageTitle(document.title || "");
+    }
+  }, []);
+
+  // keep phoneCountry in sync with the country select (PhoneInput expects lower-case)
+  useEffect(() => {
+    if (country) {
+      if (isSupportedCountry(country)) {
+        console.log(isSupportedCountry(country),'is supported');
+        
+        setPhoneCountry(country.toLowerCase());
+      } else {
+        console.error("Invalid country code:", country);
+        setPhoneCountry(undefined);
+      }
+    } else {
+      setPhoneCountry(undefined);
+    }
+  }, [country]);
+
+  // Update phone input with country code when country is selected
+  useEffect(() => {
+    if (country) {
+      if (isSupportedCountry(country)) {
+        // const dialCode = getCountryCallingCode(country as any);
+        // setPhone(`+${dialCode}`);
+      } else {
+        setPhone("");
+      }
+    } else {
+      setPhone("");
+    }
+  }, [country]);
 
   // COUNTRY + CODE
-  const countries = getData();
-  // const phoneCodes: Country[] = countryData.allCountries.map((c) => ({
-  //   name: c.name,
-  //   iso2: c.iso2,
-  //   dialCode: c.dialCode,
-  // }));
+  const phoneCountries = getCountries()
+    .filter((code) => isSupportedCountry(code))
+    .map((code) => ({
+      code,
+      name: new Intl.DisplayNames(["en"], { type: "region" }).of(code) || code,
+    }));
+
+  // Sort alphabetically
+  const sortedCountries = phoneCountries.sort((a, b) => a.name.localeCompare(b.name));
 
   // Email validation
   const validateEmail = (value: string) => {
@@ -60,8 +102,9 @@ export default function ContactForm() {
     }
     if (emailError) return;
 
+    setIsSendingOtp(true);
     try {
-      const res = await fetch("http://localhost:5000/send-otp", {
+      const res = await fetch("http://localhost:8871/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -73,107 +116,117 @@ export default function ContactForm() {
         setModal({ open: true, message: data.error || "Failed to send OTP", type: "error" });
         return;
       }
-      setModal({ open: true, message: "OTP sent!", type: "success" });
+      setModal({
+        open: true,
+        message: "OTP sent! Check your email inbox, spam folder, or Promotions tab for the email.",
+        type: "success",
+      });
       // Store OTP in localStorage
       localStorage.setItem(
         "email_otp",
         JSON.stringify({ code: data.otp, expires: Date.now() + 5 * 60 * 1000 })
       );
 
-
-
       setOtpSent(true);
-      alert("OTP sent!");
+      setOtpTimer(30);
+      
     } catch (err) {
       console.error(err);
-      alert("Network error!");
+      
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
   // VERIFY OTP
-const verifyOtp = () => {
-  const stored = localStorage.getItem("email_otp");
+  const verifyOtp = () => {
+    const stored = localStorage.getItem("email_otp");
 
-  if (!stored) {
-    setModal({ open: true, message: "No OTP stored — request again", type: "error" });
-    return;
-  }
+    if (!stored) {
+      setModal({ open: true, message: "No OTP stored — request again", type: "error" });
+      return;
+    }
 
-  const { code, expires } = JSON.parse(stored);
+    const { code, expires } = JSON.parse(stored);
 
-  if (Date.now() > expires) {
-    setModal({ open: true, message: "OTP expired, please resend", type: "error" });
-    localStorage.removeItem("email_otp");
-    return;
-  }
+    if (Date.now() > expires) {
+      setModal({ open: true, message: "OTP expired, please resend", type: "error" });
+      localStorage.removeItem("email_otp");
+      return;
+    }
 
-  if (otp === code) {
-    setVerified(true);
-    localStorage.removeItem("email_otp");
-    setModal({ open: true, message: "Email verified!", type: "success" });
-  } else {
-    setModal({ open: true, message: "Invalid OTP!", type: "error" });
-  }
-};
-
-// HANDLE FORM SUBMIT
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (!verified) {
-    setModal({ open: true, message: "Please verify your email first!", type: "error" });
-    return;
-  }
-
-  // if (!agreeTerms) {
-  //   setModal({ open: true, message: "You must agree to Terms & Conditions!", type: "error" });
-  //   return;
-  // }
-
-  // --- Build COMMON TEXT DATA ---
-  const buildFormData = () => {
-    const fd = new FormData();
-    fd.append("firstName", firstName);
-    fd.append("lastName", lastName);
-    fd.append("name", `${firstName} ${lastName}`);
-    fd.append("email", email);
-    fd.append("phone", phone || "");
-    fd.append("company", company || "");
-    fd.append("businessStatus", businessStatus);
-    fd.append("country", country);
-    fd.append("message", message || "");
-    fd.append("agreeTerms", agreeTerms ? "true" : "false");
-    fd.append("agreeMarketing", agreeMarketing ? "true" : "false");
-    
-    service.forEach((s) => fd.append("service[]", s));
-    files.forEach((file) => fd.append("files", file));
-
-    return fd;
+    if (otp === code) {
+      setVerified(true);
+      localStorage.removeItem("email_otp");
+      setModal({ open: true, message: "Email verified!", type: "success" });
+    } else {
+      setModal({ open: true, message: "Invalid OTP!", type: "error" });
+    }
   };
 
+  // HANDLE FORM SUBMIT
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  try {
-    // 1) SEND EMAIL
-    //const formEmail = buildFormData();
-    // await fetch("http://localhost:5000/send-mail", {
-    //   method: "POST",
-    //   body: formEmail,
-    // });
+    if (!verified) {
+      setModal({ open: true, message: "Please verify your email first!", type: "error" });
+      return;
+    }
 
-    // 2) CREATE LEAD
-    const formLead = buildFormData();
-    await fetch("http://localhost:5000/add-lead", {
-      method: "POST",
-      body: formLead,
-    });
+    const buildFormData = () => {
+      const fd = new FormData();
+      fd.append("firstName", firstName);
+      fd.append("lastName", lastName);
+      fd.append("name", `${firstName} ${lastName}`);
+      fd.append("email", email);
+      // phone: PhoneInput returns the full phone with country code
+      fd.append("phone", phone ?? "");
+      fd.append("company", company || "");
+      fd.append("businessStatus", businessStatus);
+      fd.append("country", country);
+      fd.append("message", message || "");
+      fd.append("agreeTerms", agreeTerms ? "true" : "false");
+      fd.append("agreeMarketing", agreeMarketing ? "true" : "false");
 
-    setModal({ open: true, message: "✔ Message sent & CRM lead created!", type: "success" });
-  } catch (err) {
-    console.error(err);
-    setModal({ open: true, message: "❌ Failed, please try again", type: "error" });
-  }
-};
+      // attach page url and title
+      fd.append("pageUrl", pageUrl);
+      fd.append("pageTitle", pageTitle);
 
+      service.forEach((s) => fd.append("service[]", s));
+      files.forEach((file) => fd.append("files", file));
+
+      return fd;
+    };
+
+    setIsSubmitting(true);
+    try {
+      const formLead = buildFormData();
+      await fetch("http://localhost:8871/add-lead", {
+        method: "POST",
+        body: formLead,
+      });
+
+      setModal({
+        open: true,
+        message: "✔ Message sent & CRM lead created! Check your email inbox, spam folder, or Promotions tab for the email.",
+        type: "success",
+      });
+
+     // Check if page title contains "gothic" and redirect after 2.5 seconds
+     const titleLower = pageTitle.toLowerCase();
+     if (titleLower.includes("gothic")) {
+       setTimeout(() => {
+         // Redirect to gothic page (adjust URL as needed)
+         window.location.href = "/gothic";
+       }, 2500);
+     }
+    } catch (err) {
+      console.error(err);
+      setModal({ open: true, message: "❌ Failed, please try again", type: "error" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const toggleService = (value: string) => {
     setService((prev) =>
@@ -187,7 +240,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       style={{ fontFamily: "'Kanit', sans-serif" }}
       onSubmit={handleSubmit}
     >
-        {/* <h1
+      {/* <h1
             style={{
                 fontSize: "48px",
                 color: "#a50019",
@@ -244,9 +297,14 @@ const handleSubmit = async (e: React.FormEvent) => {
               <button
                 type="button"
                 onClick={sendOtp}
-                className="w-full bg-green-600 text-white py-2 rounded-lg"
+                disabled={isSendingOtp}
+                className={`w-full py-2 rounded-lg text-white ${
+                  isSendingOtp
+                    ? "bg-[#8f0016] opacity-70 cursor-not-allowed"
+                    : "bg-[#a50019] hover:bg-[#8f0016] hover:cursor-pointer"
+                }`}
               >
-                Send OTP
+                {isSendingOtp ? "Sending..." : "Send OTP"}
               </button>
             ) : (
               <>
@@ -256,13 +314,36 @@ const handleSubmit = async (e: React.FormEvent) => {
                   placeholder="Enter OTP"
                   className="w-full border px-3 py-2 rounded-lg mt-2"
                 />
-                <button
-                  type="button"
-                  onClick={verifyOtp}
-                  className="w-full bg-blue-600 text-white py-2 rounded-lg mt-2"
-                >
-                  Verify OTP
-                </button>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={verifyOtp}
+                    disabled={isSendingOtp}
+                    className={`flex-1 bg-[#a50019] text-white py-2 rounded-lg ${
+                      isSendingOtp ? "opacity-60 cursor-not-allowed" : "hover:bg-[#8f0016] hover:cursor-pointer"
+                    }`}
+                  >
+                    Verify OTP
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isSendingOtp || otpTimer > 0) return;
+                      // clear current otp input when resending
+                      setOtp("");
+                      sendOtp();
+                    }}
+                    disabled={otpTimer > 0 || isSendingOtp}
+                    className={`flex-1 py-2 rounded-lg text-white ${
+                      otpTimer > 0 || isSendingOtp
+                        ? "bg-gray-400 cursor-not-allowed opacity-70"
+                        : "bg-[#a50019] hover:bg-[#8f0016] hover:cursor-pointer"
+                    }`}
+                  >
+                    {isSendingOtp ? "Sending..." : otpTimer > 0 ? `Resend OTP (${otpTimer}s)` : "Resend OTP"}
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -326,7 +407,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           required
         >
           <option value="">Select Country</option>
-          {countries.map((c) => (
+          {sortedCountries.map((c) => (
             <option key={c.code} value={c.code}>
               {c.name}
             </option>
@@ -339,14 +420,28 @@ const handleSubmit = async (e: React.FormEvent) => {
         <label className="font-medium" style={{ fontSize: "1.1rem",fontWeight: 400 }}>Phone*</label>
         <div className="mt-2">
           <PhoneInput
-            country={country.toLowerCase()}
+            defaultCountry={phoneCountry as any}
+            country={phoneCountry ? (phoneCountry as any) : undefined}
             value={phone ?? ""}
-            onChange={setPhone}
+            onChange={(val) => setPhone(val)}
+            onCountryChange={(c) => {
+              if (c) {
+                if (isSupportedCountry(c)) {
+                  setPhoneCountry(c);
+                  setCountry(c.toUpperCase());
+                } else {
+                  console.error("Invalid country from PhoneInput:", c);
+                }
+              } else {
+                setPhoneCountry(undefined);
+                setCountry("");
+              }
+            }}
             placeholder="Phone number"
             className="w-full h-12 border border-black rounded-[10px] px-3"
           />
-        </div>
-      </div>
+         </div>
+       </div>
 
       {/* Message */}
       <textarea
@@ -387,11 +482,16 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       <button
         type="submit"
-        disabled={!verified}
-        className={`w-full py-2 rounded-lg ${verified ? "bg-[#a50019] text-white" : "bg-gray-400 cursor-not-allowed"}`}
+        disabled={!verified || isSubmitting}
+        className={`w-full py-2 rounded-lg ${
+          !verified || isSubmitting
+            ? "bg-gray-400 cursor-not-allowed text-white opacity-70"
+            : "bg-[#a50019] text-white hover:bg-[#8f0016] hover:cursor-pointer"
+        }`}
       >
-        Submit
+        {isSubmitting ? "Submitting..." : "Submit"}
       </button>
+
     {modal.open && (
       <div className="fixed inset-0 flex items-center justify-center min-w-full  bg-opacity-50 z-50">
         <div className="bg-white rounded-xl shadow-lg p-6 w-1/3 text-center">
