@@ -17,6 +17,33 @@ export default function ContactForm() {
   const [message, setMessage] = useState("");
   const [agreeMarketing, setAgreeMarketing] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [utm, setUtm] = useState({
+    source: "",
+    medium: "",
+    campaign: "",
+    term: "",
+    content: "",
+  });
+
+  
+  useEffect(() => {
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+
+    const utmData = {
+      source: params.get("utm_source") || "",
+      medium: params.get("utm_medium") || "",
+      campaign: params.get("utm_campaign") || "",
+      term: params.get("utm_term") || "",
+      content: params.get("utm_content") || "",
+    };
+
+    setUtm(utmData);
+
+    console.log("📌 UTM Captured:", utmData);
+  }
+}, []);
+
 
   // Track form submission success
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -65,7 +92,7 @@ export default function ContactForm() {
   useEffect(() => {
     if (country) {
       if (isSupportedCountry(country)) {
-        console.log(isSupportedCountry(country),'is supported');
+        // console.log(isSupportedCountry(country),'is supported');
         
         setPhoneCountry(country.toLowerCase());
       } else {
@@ -203,6 +230,12 @@ export default function ContactForm() {
       // attach page url and title
       fd.append("pageUrl", pageUrl);
       fd.append("pageTitle", pageTitle);
+      fd.append("utm_source", utm.source);
+      fd.append("utm_medium", utm.medium);
+      fd.append("utm_campaign", utm.campaign);
+      fd.append("utm_term", utm.term);
+      fd.append("utm_content", utm.content);
+
 
       service.forEach((s) => fd.append("service[]", s));
       files.forEach((file) => fd.append("files", file));
