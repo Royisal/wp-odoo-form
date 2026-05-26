@@ -77,14 +77,16 @@ export default function ContactForm() {
     return () => clearInterval(id);
   }, [otpTimer]);
 
-  // Get page URL and title
+  // Get page URL and collection from URL param
   const [pageUrl, setPageUrl] = useState("");
   const [pageTitle, setPageTitle] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setPageUrl(window.location.href);
-      setPageTitle(document.title || "");
+      const params = new URLSearchParams(window.location.search);
+      const collection = params.get("collection") || "";
+      setPageTitle(collection);
     }
   }, []);
 
@@ -255,12 +257,36 @@ export default function ContactForm() {
      // Hide form and show thank you message
      setFormSubmitted(true);
 
-     // Check if page title contains "gothic" and redirect after 2.5 seconds
+     const redirectMap: Record<string, string> = {
+       "gothic": "https://royisal.com/wp-content/uploads/2025/12/Gothic-Mania-Boo.pdf",
+       "mother-bloom": "https://royisal.com/wp-content/uploads/2025/12/Mother_Bloom_RS.pdf",
+       "art-of-subtlety": "https://royisal.com/wp-content/uploads/2025/12/Art-of-subtlety.pdf",
+       "charmora": "https://royisal.com/wp-content/uploads/2025/12/Charmora.pdf",
+       "christmas-sparkle": "https://royisal.com/wp-content/uploads/2025/12/Christmas-sparkle.pdf",
+       "fall-autum": "https://royisal.com/wp-content/uploads/2025/12/Fall-autum.pdf",
+       "fashion-groovy": "https://royisal.com/wp-content/uploads/2025/12/Fashion-Groovy.pdf",
+       "fashion-groovy-mar": "https://crm.royisal.com/odoo/documents/0aCiRTTmRPKZafeOq2vExwo36",
+       "floral-motif": "https://royisal.com/wp-content/uploads/2025/12/Floral-Motif.pdf",
+       "fun-in-fairytales": "https://royisal.com/wp-content/uploads/2025/12/Fun-in-Fairytales.pdf",
+       "geo-fauna": "https://royisal.com/wp-content/uploads/2025/12/Geo-fauna.pdf",
+       "gothic-mania-boo": "https://royisal.com/wp-content/uploads/2025/12/Gothic-Mania-Boo.pdf",
+       "light-weight-gold": "https://royisal.com/wp-content/uploads/2025/12/Light-weight-gold.pdf",
+       "love-bound": "https://royisal.com/wp-content/uploads/2025/12/Love_Bound_RS.pdf",
+       "midnight-poetry": "https://royisal.com/wp-content/uploads/2025/12/Midnight-poetry-.pdf",
+       "mix-metal": "https://royisal.com/wp-content/uploads/2025/12/Mix-metal.pdf",
+       "mother-of-pearl": "https://royisal.com/wp-content/uploads/2025/12/Mother-of-pearl.pdf",
+       "savage-luxe": "https://royisal.com/wp-content/uploads/2025/12/Savage-luxe.pdf",
+       "sports-odyssey": "https://royisal.com/wp-content/uploads/2025/12/Sports-Odyssey-.pdf",
+       "the-galaxy": "https://royisal.com/wp-content/uploads/2025/12/The-Galaxy-.pdf",
+       "trecery-filigree": "https://royisal.com/wp-content/uploads/2025/12/Trecery-Filigree.pdf",
+       "urban-edge": "https://royisal.com/wp-content/uploads/2025/12/Urban-edge.pdf",
+       "vincent-van-goqh": "https://royisal.com/wp-content/uploads/2025/12/Vincent-van-goqh.pdf",
+     };
      const titleLower = pageTitle.toLowerCase();
-     if (titleLower.includes("gothic")) {
+     const redirectUrl = redirectMap[titleLower];
+     if (redirectUrl) {
        setTimeout(() => {
-         // Redirect to gothic page (adjust URL as needed)
-         window.location.href = "/gothic";
+         window.location.href = redirectUrl;
        }, 2500);
      }
     } catch (err) {
