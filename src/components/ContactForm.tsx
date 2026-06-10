@@ -566,6 +566,7 @@ export default function ContactForm() {
                 setCountry("");
               }
             }}
+            required
             placeholder="Phone number"
             className="w-full h-12 border border-black rounded-[10px] px-3"
           />
