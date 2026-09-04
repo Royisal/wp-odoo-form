@@ -8,12 +8,15 @@ export default function ContactForm() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
+  const [hasWebsite, setHasWebsite] = useState<"yes" | "no" | "">("");
+  const [website, setWebsite] = useState("");
   const [service, setService] = useState<string[]>([]);
   const [businessStatus, setBusinessStatus] = useState("");
   const [country, setCountry] = useState("");
   const [phone, setPhone] = useState<string | undefined>();
   // phoneCountry mirrors the select-driven country for PhoneInput (lowercase or undefined)
   const [phoneCountry, setPhoneCountry] = useState<string | undefined>();
+  const [whatsapp, setWhatsapp] = useState<string | undefined>();
   const [message, setMessage] = useState("");
   const [agreeMarketing, setAgreeMarketing] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -214,6 +217,11 @@ export default function ContactForm() {
       return;
     }
 
+    if (service.length === 0) {
+      alert("Please select at least one option for 'How can we help you?'");
+      return;
+    }
+
     const buildFormData = () => {
       const fd = new FormData();
       fd.append("firstName", firstName);
@@ -222,7 +230,10 @@ export default function ContactForm() {
       fd.append("email", email);
       // phone: PhoneInput returns the full phone with country code
       fd.append("phone", phone ?? "");
+      fd.append("whatsapp", whatsapp ?? "");
       fd.append("company", company || "");
+      fd.append("hasWebsite", hasWebsite === "yes" ? "true" : "false");
+      fd.append("website", hasWebsite === "yes" ? website : "");
       fd.append("businessStatus", businessStatus);
       fd.append("country", country);
       fd.append("message", message || "");
@@ -407,7 +418,37 @@ export default function ContactForm() {
         />
       </div>
 
-      {/* Email + OTP */}
+      {/* Company */}
+      <div>
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Company Name*</label>
+        <input
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          placeholder="Company Name"
+          className="w-full h-12 border border-black rounded-[10px] px-3 mt-2 text-sm md:text-base"
+          required
+        />
+      </div>
+
+      {/* Country */}
+      <div>
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Country*</label>
+        <select
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          className="w-full h-12 border border-black rounded-[10px] px-3 mt-2"
+          required
+        >
+          <option value="">Select Country</option>
+          {sortedCountries.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Email */}
       <div>
         <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Email*</label>
         <input
@@ -419,8 +460,176 @@ export default function ContactForm() {
           required
         />
         {emailError && <p className="text-red-500 text-xs">{emailError}</p>}
+      </div>
 
-        {!verified && (
+      {/* Website */}
+      <div className="flex flex-col gap-2">
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Do you have a website?*</label>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="hasWebsite"
+              checked={hasWebsite === "yes"}
+              onChange={() => setHasWebsite("yes")}
+              required
+            />
+            Yes
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="hasWebsite"
+              checked={hasWebsite === "no"}
+              onChange={() => {
+                setHasWebsite("no");
+                setWebsite("");
+              }}
+              required
+            />
+            Not built yet
+          </label>
+        </div>
+
+        {hasWebsite === "yes" && (
+          <input
+            type="url"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            placeholder="https://yourwebsite.com"
+            className="w-full h-12 border border-black rounded-[10px] px-3 mt-1 text-sm md:text-base"
+            required
+          />
+        )}
+      </div>
+
+      {/* Service checkboxes */}
+      <div className="flex flex-col gap-2">
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>How can we help you?*</label>
+        <div className="flex flex-col gap-1">
+          {["ODM", "OEM", "Other"].map((option) => (
+            <label key={option} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={service.includes(option)}
+                onChange={() => toggleService(option)}
+              />
+              {option === "ODM" ? "ODM (Your brand, our designs)" :
+               option === "OEM" ? "OEM (You design, we create)" :
+               "Other"}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Business Status */}
+      <div>
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Business Status*</label>
+        <select
+          value={businessStatus}
+          onChange={(e) => setBusinessStatus(e.target.value)}
+          className="w-full h-12 border border-black rounded-[10px] px-3 mt-2"
+          required
+        >
+          <option value="">Select Business Status</option>
+          <option value="In the business">In the business</option>
+          <option value="Start Up">Start up</option>
+          <option value="Concept Stage">Concept Stage</option>
+        </select>
+      </div>
+
+      {/* Phone */}
+      <div>
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Phone*</label>
+        <div className="mt-2">
+          <PhoneInput
+            defaultCountry={phoneCountry as any}
+            country={phoneCountry ? (phoneCountry as any) : undefined}
+            value={phone ?? ""}
+            onChange={(val) => setPhone(val)}
+            onCountryChange={(c) => {
+              if (c) {
+                if (isSupportedCountry(c)) {
+                  setPhoneCountry(c);
+                  setCountry(c.toUpperCase());
+                } else {
+                  console.error("Invalid country from PhoneInput:", c);
+                }
+              } else {
+                setPhoneCountry(undefined);
+                setCountry("");
+              }
+            }}
+            required
+            placeholder="Phone number"
+            className="w-full h-12 border border-black rounded-[10px] px-3"
+          />
+         </div>
+       </div>
+
+      {/* WhatsApp (optional) */}
+      <div>
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>WhatsApp for quick chat (optional)</label>
+        <div className="mt-2">
+          <PhoneInput
+            defaultCountry={phoneCountry as any}
+            value={whatsapp ?? ""}
+            onChange={(val) => setWhatsapp(val)}
+            placeholder="WhatsApp number"
+            className="w-full h-12 border border-black rounded-[10px] px-3"
+          />
+        </div>
+      </div>
+
+      {/* Message */}
+      <div className="flex flex-col gap-2">
+        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Things you want to discuss or know more about</label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Message"
+          className="w-full border border-black rounded-[10px] px-3 py-2"
+        />
+      </div>
+
+      {/* File Upload Button - Only show if URL contains "contact" */}
+      {pageUrl.toLowerCase().includes("contact") && (
+        <>
+          <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>
+            Upload Images <br /> (e.g., concept art, designs, inspirations)
+          </label>
+          <label className="block w-full border border-gray-400 rounded-lg px-3 py-2 text-center cursor-pointer bg-white hover:bg-gray-50">
+            {files.length > 0 ? `${files.length} file(s) selected` : "Choose file(s)"}
+            <input
+              type="file"
+              multiple
+              onChange={(e) => e.target.files && setFiles(Array.from(e.target.files))}
+              className="hidden"
+            />
+          </label>
+        </>
+      )}
+
+      {/* Checkboxes */}
+      <div className="flex flex-col gap-2">
+        <label>
+          
+          I understand that Royi Sal Jewelry team will use my data to contact me. <a href="https://royisal.com/terms/" target="_blank" rel="noopener noreferrer" className=" text-red-700">Read Terms & Conditions</a>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={agreeMarketing}
+            onChange={(e) => setAgreeMarketing(e.target.checked)}
+          />{" "}
+          I agree to receive other communications from Royi Sal Jewelry.
+        </label>
+      </div>
+
+      {/* OTP verification */}
+      {!verified && (
+        <div>
+          <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Verify your email*</label>
           <div className="mt-2">
             {!otpSent ? (
               <button
@@ -476,144 +685,8 @@ export default function ContactForm() {
               </>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Company */}
-      <div>
-        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Company Name*</label>
-        <input
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          placeholder="Company Name"
-          className="w-full h-12 border border-black rounded-[10px] px-3 mt-2 text-sm md:text-base"
-          required
-        />
-      </div>
-
-      {/* Service checkboxes */}
-      <div className="flex flex-col gap-2">
-        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>How can we help you?*</label>
-        <div className="flex flex-col gap-1">
-          {["ODM", "OEM", "Other"].map((option) => (
-            <label key={option} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={service.includes(option)}
-                onChange={() => toggleService(option)}
-              />
-              {option === "ODM" ? "ODM (Your brand, our designs)" :
-               option === "OEM" ? "OEM (You design, we create)" :
-               "Other"}
-            </label>
-          ))}
         </div>
-      </div>
-
-      {/* Business Status */}
-      <div>
-        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Business Status*</label>
-        <select
-          value={businessStatus}
-          onChange={(e) => setBusinessStatus(e.target.value)}
-          className="w-full h-12 border border-black rounded-[10px] px-3 mt-2"
-          required
-        >
-          <option value="">Select Business Status</option>
-          <option value="In the business">In the business</option>
-          <option value="Start Up">Start up</option>
-          <option value="Concept Stage">Concept Stage</option>
-        </select>
-      </div>
-
-      {/* Country */}
-      <div>
-        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Country*</label>
-        <select
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          className="w-full h-12 border border-black rounded-[10px] px-3 mt-2"
-          required
-        >
-          <option value="">Select Country</option>
-          {sortedCountries.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Phone */}
-      <div>
-        <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>Phone*</label>
-        <div className="mt-2">
-          <PhoneInput
-            defaultCountry={phoneCountry as any}
-            country={phoneCountry ? (phoneCountry as any) : undefined}
-            value={phone ?? ""}
-            onChange={(val) => setPhone(val)}
-            onCountryChange={(c) => {
-              if (c) {
-                if (isSupportedCountry(c)) {
-                  setPhoneCountry(c);
-                  setCountry(c.toUpperCase());
-                } else {
-                  console.error("Invalid country from PhoneInput:", c);
-                }
-              } else {
-                setPhoneCountry(undefined);
-                setCountry("");
-              }
-            }}
-            required
-            placeholder="Phone number"
-            className="w-full h-12 border border-black rounded-[10px] px-3"
-          />
-         </div>
-       </div>
-
-      {/* Message */}
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Message"
-        className="w-full border border-black rounded-[10px] px-3 py-2"
-      />
-
-      {/* File Upload Button - Only show if URL contains "contact" */}
-      {pageUrl.toLowerCase().includes("contact") && (
-        <>
-          <label className="font-medium text-sm md:text-base" style={{ fontWeight: 400 }}>
-            Upload Images <br /> (e.g., concept art, designs, inspirations)
-          </label>
-          <label className="block w-full border border-gray-400 rounded-lg px-3 py-2 text-center cursor-pointer bg-white hover:bg-gray-50">
-            {files.length > 0 ? `${files.length} file(s) selected` : "Choose file(s)"}
-            <input
-              type="file"
-              multiple
-              onChange={(e) => e.target.files && setFiles(Array.from(e.target.files))}
-              className="hidden"
-            />
-          </label>
-        </>
       )}
-
-      {/* Checkboxes */}
-      <div className="flex flex-col gap-2">
-        <label>
-          
-          I understand that Royi Sal Jewelry team will use my data to contact me. <a href="https://royisal.com/terms/" target="_blank" rel="noopener noreferrer" className=" text-red-700">Read Terms & Conditions</a>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={agreeMarketing}
-            onChange={(e) => setAgreeMarketing(e.target.checked)}
-          />{" "}
-          I agree to receive other communications from Royi Sal Jewelry.
-        </label>
-      </div>
 
       <button
         type="submit"
